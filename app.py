@@ -31,8 +31,10 @@ TEXTS = {
         "tab2": "📋 View Records",
         "user_select": "Select User / Friend",
         "user_pin_label": "Enter User PIN / Password",
-        "pin_required": "Please enter your PIN",
-        "pin_error": "❌ Incorrect user PIN",
+        "user_login_btn": "🔓 User Login",
+        "pin_error": "❌ Incorrect user PIN. Please try again.",
+        "login_success_msg": "🎉 Successfully logged in as:",
+        "logout_btn": "Switch User / Logout",
         "current_user_banner": "✏️ Currently logging expenses for:",
         "add_user_header": "➕ Manage Users & PINs",
         "new_user_input": "New User Name",
@@ -80,8 +82,10 @@ TEXTS = {
         "tab2": "📋 查看所有紀錄",
         "user_select": "選擇使用者 / 朋友",
         "user_pin_label": "請輸入該使用者的專屬密碼 (PIN)",
-        "pin_required": "請輸入您的專屬密碼",
-        "pin_error": "❌ 使用者密碼錯誤",
+        "user_login_btn": "🔓 登入使用者",
+        "pin_error": "❌ 使用者密碼錯誤，請重新輸入！",
+        "login_success_msg": "🎉 成功登入為：",
+        "logout_btn": "切換使用者 / 登出",
         "current_user_banner": "✏️ 目前正在為以下使用者記帳：",
         "add_user_header": "➕ 新增使用者與設定密碼",
         "new_user_input": "新使用者名字",
@@ -157,10 +161,13 @@ if "users_dict" not in st.session_state:
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
 
+if "logged_in_user" not in st.session_state:
+    st.session_state.logged_in_user = None
+
 # ==================== SIDEBAR MANAGEMENT & LIVE SUMMARY ====================
 st.sidebar.markdown("---")
 
-with st.sidebar.expander(t["add_user_header"], expanded=True):
+with st.sidebar.expander(t["add_user_header"], expanded=False):
     new_user_name = st.text_input(t["new_user_input"])
     new_user_pin = st.text_input(t["new_pin_input"], type="password")
 
@@ -186,7 +193,7 @@ with st.sidebar.expander(t["add_user_header"], expanded=True):
             st.error(st.session_state.success_msg)
         else:
             st.success(st.session_state.success_msg)
-        st.session_state.success_msg = ""  # Reset after showing
+        st.session_state.success_msg = ""
 
 st.sidebar.subheader(t["sidebar_title"])
 df_sidebar = st.session_state.user_data
@@ -217,64 +224,83 @@ with tab1:
     user_list = list(st.session_state.users_dict.keys())
     selected_user = st.selectbox(t["user_select"], user_list)
 
-    # 🌟 清楚在畫面上方顯示目前正在為誰記帳
-    st.markdown(
-        f"### {t['current_user_banner']} `{selected_user}`"
-    )
+    # If user switched, reset login state
+    if st.session_state.get("prev_selected_user") != selected_user:
+        st.session_state.logged_in_user = None
+        st.session_state.prev_selected_user = selected_user
 
-    entered_user_pin = st.text_input(t["user_pin_label"], type="password")
+    # Check if this user is successfully logged in
+    if st.session_state.logged_in_user == selected_user:
+        st.success(f"{t['login_success_msg']} **{selected_user}**")
+        if st.button(t["logout_btn"]):
+            st.session_state.logged_in_user = None
+            st.rerun()
 
-    correct_pin = st.session_state.users_dict.get(selected_user, "")
+        st.markdown(f"### {t['current_user_banner']} `{selected_user}`")
 
-    with st.form("expense_form", clear_on_submit=True):
-        receipt_file = st.file_uploader(
-            t["upload_label"], type=["jpg", "jpeg", "png"]
-        )
-
-        if receipt_file is not None:
-            image = Image.open(receipt_file)
-            st.image(
-                image, caption=t["receipt_loaded"], use_container_width=True
+        # 📝 Expense entry form (ONLY shown when logged in successfully)
+        with st.form("expense_form", clear_on_submit=True):
+            receipt_file = st.file_uploader(
+                t["upload_label"], type=["jpg", "jpeg", "png"]
             )
 
-        date = st.date_input(t["date_label"], value=datetime.today())
-        display_category = st.selectbox(t["cat_label"], list(t["cats"].keys()))
-        description = st.text_input(t["desc_label"], placeholder=t["desc_ph"])
-        amount = st.number_input(
-            t["amount_label"], min_value=0.0, step=1.0, value=0.0
-        )
-
-        submitted = st.form_submit_button(t["save_btn"])
-
-        if submitted:
-            if not entered_user_pin:
-                st.warning(t["pin_required"])
-            elif entered_user_pin != correct_pin:
-                st.error(t["pin_error"])
-            elif not description.strip():
-                st.warning(t["empty_desc_warn"])
-            else:
-                new_entry = {
-                    "User": selected_user,
-                    "Date": str(date),
-                    "Category": t["cats"][display_category],
-                    "Description": description,
-                    "Amount (AUD)": amount,
-                    "Note": (
-                        "Receipt Attached"
-                        if receipt_file is not None
-                        else "Manual Entry"
-                    ),
-                }
-                st.session_state.user_data = pd.concat(
-                    [
-                        st.session_state.user_data,
-                        pd.DataFrame([new_entry]),
-                    ],
-                    ignore_index=True,
+            if receipt_file is not None:
+                image = Image.open(receipt_file)
+                st.image(
+                    image,
+                    caption=t["receipt_loaded"],
+                    use_container_width=True,
                 )
-                st.success(t["save_success"])
+
+            date = st.date_input(t["date_label"], value=datetime.today())
+            display_category = st.selectbox(
+                t["cat_label"], list(t["cats"].keys())
+            )
+            description = st.text_input(
+                t["desc_label"], placeholder=t["desc_ph"]
+            )
+            amount = st.number_input(
+                t["amount_label"], min_value=0.0, step=1.0, value=0.0
+            )
+
+            submitted = st.form_submit_button(t["save_btn"])
+
+            if submitted:
+                if not description.strip():
+                    st.warning(t["empty_desc_warn"])
+                else:
+                    new_entry = {
+                        "User": selected_user,
+                        "Date": str(date),
+                        "Category": t["cats"][display_category],
+                        "Description": description,
+                        "Amount (AUD)": amount,
+                        "Note": (
+                            "Receipt Attached"
+                            if receipt_file is not None
+                            else "Manual Entry"
+                        ),
+                    }
+                    st.session_state.user_data = pd.concat(
+                        [
+                            st.session_state.user_data,
+                            pd.DataFrame([new_entry]),
+                        ],
+                        ignore_index=True,
+                    )
+                    st.success(t["save_success"])
+                    st.rerun()
+
+    else:
+        # 🔒 Login gate (Hidden until correct PIN is entered and login button is pressed)
+        entered_user_pin = st.text_input(t["user_pin_label"], type="password")
+        if st.button(t["user_login_btn"]):
+            correct_pin = st.session_state.users_dict.get(selected_user, "")
+            if entered_user_pin == correct_pin:
+                st.session_state.logged_in_user = selected_user
                 st.rerun()
+            else:
+                st.error(t["pin_error"])
 
 with tab2:
     st.subheader(t["records_title"])
