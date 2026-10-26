@@ -33,12 +33,15 @@ TEXTS = {
         "user_pin_label": "Enter User PIN / Password",
         "pin_required": "Please enter your PIN",
         "pin_error": "❌ Incorrect user PIN",
+        "current_user_banner": "✏️ Currently logging expenses for:",
         "add_user_header": "➕ Manage Users & PINs",
         "new_user_input": "New User Name",
         "new_pin_input": "User PIN (e.g., 1234)",
         "add_user_btn": "Add User",
         "user_added_success": "User added successfully!",
-        "user_exists_err": "User already exists or name is empty!",
+        "user_exists_err": (
+            "❌ User already exists, PIN is missing, or name is empty!"
+        ),
         "upload_label": "1. Upload Receipt (Optional)",
         "receipt_loaded": "Receipt uploaded!",
         "date_label": "2. Date",
@@ -79,12 +82,13 @@ TEXTS = {
         "user_pin_label": "請輸入該使用者的專屬密碼 (PIN)",
         "pin_required": "請輸入您的專屬密碼",
         "pin_error": "❌ 使用者密碼錯誤",
+        "current_user_banner": "✏️ 目前正在為以下使用者記帳：",
         "add_user_header": "➕ 新增使用者與設定密碼",
         "new_user_input": "新使用者名字",
         "new_pin_input": "設定專屬密碼 (例如: 1234)",
         "add_user_btn": "新增使用者",
         "user_added_success": "使用者新增成功！",
-        "user_exists_err": "使用者名稱已存在或不能為空！",
+        "user_exists_err": "❌ 使用者已存在、密碼空白或名字不能為空！",
         "upload_label": "1. 拍照或上傳收據（選填）",
         "receipt_loaded": "收據已上傳！",
         "date_label": "2. 消費日期",
@@ -150,14 +154,15 @@ if "user_data" not in st.session_state:
 if "users_dict" not in st.session_state:
     st.session_state.users_dict = {"Default User": "1234"}
 
+if "success_msg" not in st.session_state:
+    st.session_state.success_msg = ""
+
 # ==================== SIDEBAR MANAGEMENT & LIVE SUMMARY ====================
 st.sidebar.markdown("---")
 
 with st.sidebar.expander(t["add_user_header"], expanded=True):
-    new_user_name = st.text_input(t["new_user_input"], key="input_user_name")
-    new_user_pin = st.text_input(
-        t["new_pin_input"], type="password", key="input_user_pin"
-    )
+    new_user_name = st.text_input(t["new_user_input"])
+    new_user_pin = st.text_input(t["new_pin_input"], type="password")
 
     if st.button(t["add_user_btn"]):
         clean_name = new_user_name.strip()
@@ -168,10 +173,20 @@ with st.sidebar.expander(t["add_user_header"], expanded=True):
             and clean_name not in st.session_state.users_dict
         ):
             st.session_state.users_dict[clean_name] = clean_pin
-            st.success(f"'{clean_name}' {t['user_added_success']}")
+            st.session_state.success_msg = (
+                f"✅ '{clean_name}' {t['user_added_success']}"
+            )
             st.rerun()
         else:
-            st.warning(t["user_exists_err"])
+            st.session_state.success_msg = t["user_exists_err"]
+            st.rerun()
+
+    if st.session_state.success_msg:
+        if "❌" in st.session_state.success_msg:
+            st.error(st.session_state.success_msg)
+        else:
+            st.success(st.session_state.success_msg)
+        st.session_state.success_msg = ""  # Reset after showing
 
 st.sidebar.subheader(t["sidebar_title"])
 df_sidebar = st.session_state.user_data
@@ -201,6 +216,12 @@ tab1, tab2 = st.tabs([t["tab1"], t["tab2"]])
 with tab1:
     user_list = list(st.session_state.users_dict.keys())
     selected_user = st.selectbox(t["user_select"], user_list)
+
+    # 🌟 清楚在畫面上方顯示目前正在為誰記帳
+    st.markdown(
+        f"### {t['current_user_banner']} `{selected_user}`"
+    )
+
     entered_user_pin = st.text_input(t["user_pin_label"], type="password")
 
     correct_pin = st.session_state.users_dict.get(selected_user, "")
