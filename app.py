@@ -6,6 +6,13 @@ import streamlit as st
 
 # ==================== CONFIGURATION ====================
 ACCESS_PASSWORD = "25062506"
+
+# 🌟 固定的使用者與個人專屬 PIN / 密碼（永久保存）
+DEFAULT_USERS = {
+    "Default User": "Freddypoo",
+    "Jo": "2410",
+    "Fred": "2506",
+}
 # ========================================================
 
 st.set_page_config(
@@ -36,14 +43,6 @@ TEXTS = {
         "login_success_msg": "🎉 Successfully logged in as:",
         "logout_btn": "Switch User / Logout",
         "current_user_banner": "✏️ Currently logging expenses for:",
-        "add_user_header": "➕ Manage Users & PINs",
-        "new_user_input": "New User Name",
-        "new_pin_input": "User PIN (e.g., 1234)",
-        "add_user_btn": "Add User",
-        "user_added_success": "User added successfully!",
-        "user_exists_err": (
-            "❌ User already exists, PIN is missing, or name is empty!"
-        ),
         "upload_label": "1. Upload Receipt (Optional)",
         "receipt_loaded": "Receipt uploaded!",
         "date_label": "2. Date",
@@ -87,12 +86,6 @@ TEXTS = {
         "login_success_msg": "🎉 成功登入為：",
         "logout_btn": "切換使用者 / 登出",
         "current_user_banner": "✏️ 目前正在為以下使用者記帳：",
-        "add_user_header": "➕ 新增使用者與設定密碼",
-        "new_user_input": "新使用者名字",
-        "new_pin_input": "設定專屬密碼 (例如: 1234)",
-        "add_user_btn": "新增使用者",
-        "user_added_success": "使用者新增成功！",
-        "user_exists_err": "❌ 使用者已存在、密碼空白或名字不能為空！",
         "upload_label": "1. 拍照或上傳收據（選填）",
         "receipt_loaded": "收據已上傳！",
         "date_label": "2. 消費日期",
@@ -154,47 +147,14 @@ if "user_data" not in st.session_state:
         ]
     )
 
-# Users dictionary storing {name: pin}
 if "users_dict" not in st.session_state:
-    st.session_state.users_dict = {"Default User": "1234"}
-
-if "success_msg" not in st.session_state:
-    st.session_state.success_msg = ""
+    st.session_state.users_dict = DEFAULT_USERS
 
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 
-# ==================== SIDEBAR MANAGEMENT & LIVE SUMMARY ====================
+# ==================== SIDEBAR LIVE SUMMARY ====================
 st.sidebar.markdown("---")
-
-with st.sidebar.expander(t["add_user_header"], expanded=False):
-    new_user_name = st.text_input(t["new_user_input"])
-    new_user_pin = st.text_input(t["new_pin_input"], type="password")
-
-    if st.button(t["add_user_btn"]):
-        clean_name = new_user_name.strip()
-        clean_pin = new_user_pin.strip()
-        if (
-            clean_name
-            and clean_pin
-            and clean_name not in st.session_state.users_dict
-        ):
-            st.session_state.users_dict[clean_name] = clean_pin
-            st.session_state.success_msg = (
-                f"✅ '{clean_name}' {t['user_added_success']}"
-            )
-            st.rerun()
-        else:
-            st.session_state.success_msg = t["user_exists_err"]
-            st.rerun()
-
-    if st.session_state.success_msg:
-        if "❌" in st.session_state.success_msg:
-            st.error(st.session_state.success_msg)
-        else:
-            st.success(st.session_state.success_msg)
-        st.session_state.success_msg = ""
-
 st.sidebar.subheader(t["sidebar_title"])
 df_sidebar = st.session_state.user_data
 if not df_sidebar.empty:
@@ -224,12 +184,10 @@ with tab1:
     user_list = list(st.session_state.users_dict.keys())
     selected_user = st.selectbox(t["user_select"], user_list)
 
-    # If user switched, reset login state
     if st.session_state.get("prev_selected_user") != selected_user:
         st.session_state.logged_in_user = None
         st.session_state.prev_selected_user = selected_user
 
-    # Check if this user is successfully logged in
     if st.session_state.logged_in_user == selected_user:
         st.success(f"{t['login_success_msg']} **{selected_user}**")
         if st.button(t["logout_btn"]):
@@ -238,7 +196,6 @@ with tab1:
 
         st.markdown(f"### {t['current_user_banner']} `{selected_user}`")
 
-        # 📝 Expense entry form (ONLY shown when logged in successfully)
         with st.form("expense_form", clear_on_submit=True):
             receipt_file = st.file_uploader(
                 t["upload_label"], type=["jpg", "jpeg", "png"]
@@ -292,7 +249,6 @@ with tab1:
                     st.rerun()
 
     else:
-        # 🔒 Login gate (Hidden until correct PIN is entered and login button is pressed)
         entered_user_pin = st.text_input(t["user_pin_label"], type="password")
         if st.button(t["user_login_btn"]):
             correct_pin = st.session_state.users_dict.get(selected_user, "")
