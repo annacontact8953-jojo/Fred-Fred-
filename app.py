@@ -1,6 +1,5 @@
 from datetime import datetime
 import io
-import re
 import pandas as pd
 from PIL import Image
 import streamlit as st
@@ -30,8 +29,11 @@ TEXTS = {
         "pwd_err": "❌ Incorrect password",
         "tab1": "📝 Quick Entry",
         "tab2": "📋 View Records",
-        "user_label": "User / Friend Name",
-        "user_ph": "e.g., John",
+        "user_select": "Select User / Friend",
+        "add_user_header": "➕ Manage Users",
+        "new_user_input": "New User Name",
+        "add_user_btn": "Add User",
+        "user_added_success": "User added!",
         "upload_label": "1. Upload Receipt (Optional)",
         "receipt_loaded": "Receipt uploaded!",
         "date_label": "2. Date",
@@ -40,7 +42,6 @@ TEXTS = {
         "desc_ph": "e.g., Fuel, Personal Super Contribution, Course",
         "amount_label": "5. Amount (AUD)",
         "save_btn": "✅ Save Expense",
-        "empty_user_warn": "Please enter the user/friend name!",
         "empty_desc_warn": "Please provide a description!",
         "save_success": "🎉 Expense saved successfully!",
         "records_title": "📋 Tax Deductions Records",
@@ -69,8 +70,11 @@ TEXTS = {
         "pwd_err": "❌ 密碼錯誤，請重新輸入",
         "tab1": "📝 快速記帳",
         "tab2": "📋 查看所有紀錄",
-        "user_label": "使用者 / 朋友名字",
-        "user_ph": "例如: John",
+        "user_select": "選擇使用者 / 朋友",
+        "add_user_header": "➕ 新增/管理使用者",
+        "new_user_input": "輸入新使用者名字",
+        "add_user_btn": "新增使用者",
+        "user_added_success": "使用者新增成功！",
         "upload_label": "1. 拍照或上傳收據（選填）",
         "receipt_loaded": "收據已上傳！",
         "date_label": "2. 消費日期",
@@ -79,7 +83,6 @@ TEXTS = {
         "desc_ph": "例如: 加油、個人退休金提撥 (Super)、買書",
         "amount_label": "5. 金額 (AUD)",
         "save_btn": "✅ 儲存紀錄",
-        "empty_user_warn": "請填寫使用者/朋友的名字！",
         "empty_desc_warn": "請填寫項目說明！",
         "save_success": "🎉 紀錄成功儲存！",
         "records_title": "📋 目前累積的扣除額紀錄",
@@ -95,7 +98,7 @@ TEXTS = {
             "🏦 個人退休金自願提撥 (Super)": (
                 "Personal superannuation contributions"
             ),
-            "💼 其他工作開支 (Other Expenses)": "Other work-related expenses",
+            "💼 Other Work Expenses": "Other work-related expenses",
         },
     },
 }
@@ -120,7 +123,7 @@ if not st.session_state.password_correct:
             st.error(t["pwd_err"])
     st.stop()
 
-# Initialize Expense Data
+# Initialize Expense Data & Users
 if "user_data" not in st.session_state:
     st.session_state.user_data = pd.DataFrame(
         columns=[
@@ -133,15 +136,31 @@ if "user_data" not in st.session_state:
         ]
     )
 
-# ==================== SIDEBAR LIVE SUMMARY ====================
+if "user_list" not in st.session_state:
+    st.session_state.user_list = ["Default User"]
+
+# ==================== SIDEBAR MANAGEMENT & LIVE SUMMARY ====================
 st.sidebar.markdown("---")
+
+# Dynamic User Addition Section
+with st.sidebar.expander(t["add_user_header"], expanded=False):
+    new_user_name = st.text_input(t["new_user_input"], key="new_user_input_key")
+    if st.button(t["add_user_btn"]):
+        if (
+            new_user_name.strip()
+            and new_user_name.strip() not in st.session_state.user_list
+        ):
+            st.session_state.user_list.append(new_user_name.strip())
+            st.success(t["user_added_success"])
+            st.rerun()
+
 st.sidebar.subheader(t["sidebar_title"])
 df_sidebar = st.session_state.user_data
 if not df_sidebar.empty:
     total_all = df_sidebar["Amount (AUD)"].sum()
     st.sidebar.metric(label=t["sidebar_total"], value=f"${total_all:,.2f} AUD")
 
-    st.sidebar.markdown("**依使用者統計 / By User:**")
+    st.sidebar.markdown("**By User / 依使用者統計:**")
     user_summary = (
         df_sidebar.groupby("User")["Amount (AUD)"].sum().reset_index()
     )
@@ -161,10 +180,11 @@ st.markdown(t["subtitle"])
 tab1, tab2 = st.tabs([t["tab1"], t["tab2"]])
 
 with tab1:
+    selected_user = st.selectbox(
+        t["user_select"], st.session_state.user_list
+    )
+
     with st.form("expense_form", clear_on_submit=True):
-        user_name = st.text_input(
-            t["user_label"], placeholder=t["user_ph"]
-        )
         receipt_file = st.file_uploader(
             t["upload_label"], type=["jpg", "jpeg", "png"]
         )
@@ -185,13 +205,11 @@ with tab1:
         submitted = st.form_submit_button(t["save_btn"])
 
         if submitted:
-            if not user_name.strip():
-                st.warning(t["empty_user_warn"])
-            elif not description.strip():
+            if not description.strip():
                 st.warning(t["empty_desc_warn"])
             else:
                 new_entry = {
-                    "User": user_name.strip(),
+                    "User": selected_user,
                     "Date": str(date),
                     "Category": t["cats"][display_category],
                     "Description": description,
