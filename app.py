@@ -154,24 +154,24 @@ if "users_dict" not in st.session_state:
 st.sidebar.markdown("---")
 
 with st.sidebar.expander(t["add_user_header"], expanded=True):
-    with st.form("add_user_form"):
-        new_user_name = st.text_input(t["new_user_input"])
-        new_user_pin = st.text_input(t["new_pin_input"], type="password")
-        add_submitted = st.form_submit_button(t["add_user_btn"])
+    new_user_name = st.text_input(t["new_user_input"], key="input_user_name")
+    new_user_pin = st.text_input(
+        t["new_pin_input"], type="password", key="input_user_pin"
+    )
 
-        if add_submitted:
-            clean_name = new_user_name.strip()
-            clean_pin = new_user_pin.strip()
-            if (
-                clean_name
-                and clean_pin
-                and clean_name not in st.session_state.users_dict
-            ):
-                st.session_state.users_dict[clean_name] = clean_pin
-                st.success(t["user_added_success"])
-                st.rerun()
-            else:
-                st.warning(t["user_exists_err"])
+    if st.button(t["add_user_btn"]):
+        clean_name = new_user_name.strip()
+        clean_pin = new_user_pin.strip()
+        if (
+            clean_name
+            and clean_pin
+            and clean_name not in st.session_state.users_dict
+        ):
+            st.session_state.users_dict[clean_name] = clean_pin
+            st.success(f"'{clean_name}' {t['user_added_success']}")
+            st.rerun()
+        else:
+            st.warning(t["user_exists_err"])
 
 st.sidebar.subheader(t["sidebar_title"])
 df_sidebar = st.session_state.user_data
@@ -203,7 +203,6 @@ with tab1:
     selected_user = st.selectbox(t["user_select"], user_list)
     entered_user_pin = st.text_input(t["user_pin_label"], type="password")
 
-    # Verify user PIN before letting them submit expenses
     correct_pin = st.session_state.users_dict.get(selected_user, "")
 
     with st.form("expense_form", clear_on_submit=True):
